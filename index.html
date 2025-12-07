@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>依恋类型评估 (基于《亲密关系》第六版)</title>
+    <style>
+        :root { --primary-color: #2c3e50; --accent-color: #c0392b; --bg-color: #f8f9fa; }
+        body { font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", sans-serif; background-color: var(--bg-color); color: #333; margin: 0; padding: 20px; line-height: 1.6; }
+        .container { max-width: 800px; margin: 0 auto; background: #fff; padding: 40px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); }
+        
+        h1 { text-align: center; color: var(--primary-color); margin-bottom: 5px; font-weight: 700; }
+        .subtitle { text-align: center; color: #7f8c8d; font-size: 0.9em; margin-bottom: 40px; }
+        
+        /* 题目部分 */
+        .section-badge { display: inline-block; background: var(--primary-color); color: #fff; padding: 5px 10px; border-radius: 4px; font-size: 0.85em; margin-top: 30px; margin-bottom: 15px; }
+        .question-item { margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px dashed #eee; }
+        .question-text { font-size: 1.05em; font-weight: 500; margin-bottom: 12px; display: block; }
+        
+        /* 1-7 量表样式 */
+        .options-scale { display: flex; justify-content: space-between; align-items: center; background: #fafafa; padding: 10px 5px; border-radius: 6px; }
+        .scale-txt { font-size: 0.75em; color: #666; width: 40px; text-align: center; line-height: 1.2; }
+        .radio-group { flex: 1; display: flex; justify-content: space-around; }
+        .radio-wrapper { display: flex; flex-direction: column; align-items: center; cursor: pointer; position: relative; }
+        .radio-wrapper input { margin-bottom: 4px; cursor: pointer; accent-color: var(--primary-color); }
+        .radio-wrapper span { font-size: 0.8em; color: #999; }
+        
+        button { display: block; width: 100%; padding: 16px; background-color: var(--primary-color); color: white; border: none; font-size: 1.1em; font-weight: bold; cursor: pointer; transition: opacity 0.3s; margin-top: 40px; border-radius: 6px; }
+        button:hover { opacity: 0.9; }
+
+        /* 结果区域 */
+        #result-section { display: none; margin-top: 50px; border-top: 2px solid #eee; padding-top: 30px; }
+        .result-header { text-align: center; margin-bottom: 30px; }
+        .final-type { font-size: 1.5em; color: var(--primary-color); font-weight: bold; margin: 10px 0; }
+        
+        /* === 核心：坐标图优化版 === */
+        .chart-container { 
+            position: relative; 
+            width: 100%; max-width: 450px; /* 稍微缩小一点适配手机 */
+            aspect-ratio: 1 / 1;          /* 保持正方形 */
+            margin: 0 auto; 
+            border: 2px solid #333; 
+            background: #fff; 
+            font-family: sans-serif;
+            overflow: hidden; /* 防止文字溢出 */
+        }
+        
+        /* 象限背景色 */
+        .quadrant { position: absolute; width: 50%; height: 50%; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; padding: 5px; box-sizing: border-box; font-size: 0.85em; opacity: 0.9; z-index: 1; }
+        #q-secure { top: 0; left: 0; background-color: #f1f8e9; color: #33691e; }      /* 左上：安全 */
+        #q-preoccupied { top: 0; right: 0; background-color: #ffebee; color: #b71c1c; } /* 右上：痴迷 */
+        #q-dismissing { bottom: 0; left: 0; background-color: #fff3e0; color: #e65100; } /* 左下：疏离 */
+        #q-fearful { bottom: 0; right: 0; background-color: #eceff1; color: #455a64; }   /* 右下：恐惧 */
+
+        .q-name { font-weight: bold; font-size: 1.1em; margin-bottom: 4px; display: block; }
+        .q-desc { font-size: 0.8em; opacity: 0.85; line-height: 1.3; }
+
+        /* 坐标轴线 */
+        .axis-line-x { position: absolute; top: 50%; width: 100%; height: 2px; background: #333; z-index: 2; }
+        .axis-line-y { position: absolute; left: 50%; height: 100%; width: 2px; background: #333; z-index: 2; }
+
+        /* 坐标轴箭头 (纯CSS绘制) */
+        .arrow { position: absolute; width: 0; height: 0; z-index: 3; }
+        .arr-top { top: 0; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-bottom: 12px solid #333; }
+        .arr-bottom { bottom: 0; left: 50%; transform: translateX(-50%); border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 12px solid #333; }
+        .arr-left { top: 50%; left: 0; transform: translateY(-50%); border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-right: 12px solid #333; }
+        .arr-right { top: 50%; right: 0; transform: translateY(-50%); border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 12px solid #333; }
+
+        /* === 优化：坐标轴标签 === */
+        /* 增加背景色遮挡线条，增加内边距防止重叠 */
+        .axis-label { 
+            position: absolute; 
+            font-size: 0.8em; 
+            font-weight: bold; 
+            background: rgba(255,255,255,0.9); 
+            padding: 2px 6px; 
+            border-radius: 4px;
+            z-index: 4; 
+            white-space: nowrap; /* 防止换行 */
+            color: #333;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* 关键调整：使用 calc 和 margin 避开箭头 */
+        .lbl-top { top: 15px; left: 50%; transform: translateX(-50%); }     /* 低回避 */
+        .lbl-bottom { bottom: 15px; left: 50%; transform: translateX(-50%); } /* 高回避 */
+        .lbl-left { top: 50%; left: 15px; transform: translateY(-50%); }      /* 低焦虑 */
+        .lbl-right { top: 50%; right: 15px; transform: translateY(-50%); }     /* 高焦虑 */
+
+        /* 用户落点 */
+        #user-point {
+            position: absolute; width: 18px; height: 18px; 
+            background: var(--accent-color); 
+            border: 3px solid #fff; border-radius: 50%; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5); 
+            z-index: 10;
+            transition: all 1.2s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
+            left: 50%; top: 50%; transform: translate(-50%, -50%);
+        }
+
+        @media (max-width: 600px) {
+            .container { padding: 20px; }
+            .scale-txt { display: none; } /* 手机端隐藏两端文字，空间太小 */
+            .options-scale { justify-content: space-around; }
+            .q-desc { font-size: 0.7em; display: none; } /* 手机上如果太挤，可以隐藏描述只留标题，这里我选了隐藏描述 */
+            .q-name { font-size: 0.9em; margin-bottom: 0; }
+            .quadrant { padding: 2px; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>依恋类型自我评估</h1>
+    <p class="subtitle">基于《亲密关系(第6版)》专栏2.3 & 图1.5</p>
+
+    <form id="quizForm">
+        <div class="section-badge">第一部分：焦虑维度 (Anxiety)</div>
+        <div id="anxiety-questions"></div>
+
+        <div class="section-badge">第二部分：回避维度 (Avoidance)</div>
+        <div id="avoidance-questions"></div>
+
+        <button type="button" onclick="calculateResult()">生成评估图谱</button>
+    </form>
+
+    <div id="result-section">
+        <div class="result-header">
+            <div>您的依恋类型倾向</div>
+            <div class="final-type" id="type-result">--</div>
+            <div style="font-size: 0.9em; color: #666;">
+                焦虑总分: <b id="anx-score">0</b> <span style="font-size:0.8em">(常模均值:22)</span> | 
+                回避总分: <b id="avd-score">0</b> <span style="font-size:0.8em">(常模均值:15)</span>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div id="q-secure" class="quadrant">
+                <span class="q-name">安全型</span>
+                <span class="q-desc">舒适/依赖/自信</span>
+            </div>
+            <div id="q-preoccupied" class="quadrant">
+                <span class="q-name">痴迷型</span>
+                <span class="q-desc">警惕/贪婪/不安</span>
+            </div>
+            <div id="q-dismissing" class="quadrant">
+                <span class="q-name">疏离型</span>
+                <span class="q-desc">冷淡/独立/漠视</span>
+            </div>
+            <div id="q-fearful" class="quadrant">
+                <span class="q-name">恐惧型</span>
+                <span class="q-desc">害怕/多疑/害羞</span>
+            </div>
+
+            <div class="axis-line-x"></div>
+            <div class="axis-line-y"></div>
+
+            <div class="arrow arr-top"></div>
+            <div class="arrow arr-bottom"></div>
+            <div class="arrow arr-left"></div>
+            <div class="arrow arr-right"></div>
+
+            <div class="axis-label lbl-top">低 (回避亲密)</div>
+            <div class="axis-label lbl-bottom">高 (回避亲密)</div>
+            <div class="axis-label lbl-left">低 (焦虑被弃)</div>
+            <div class="axis-label lbl-right">高 (焦虑被弃)</div>
+
+            <div id="user-point"></div>
+        </div>
+        
+        <p style="text-align: center; font-size: 0.8em; color: #aaa; margin-top: 15px;">
+            注：坐标中心为量表理论中点 (4.0)。<br>
+            您的落点反映了您的绝对倾向，而非与他人比较的相对值。
+        </p>
+    </div>
+</div>
+
+<script>
+    // 题目配置：text=题目, reverse=是否反向计分
+    const questions = {
+        anxiety: [
+            { t: "1. 我担心爱人不会像我关心他一样关心我。", r: false },
+            { t: "2. 我想接近他人的愿望有时会把人吓跑。", r: false },
+            { t: "3. 我需要很多保证才相信伴侣是爱我的。", r: false },
+            { t: "4. 我发现伴侣不像我期望的那般亲密交往。", r: false },
+            { t: "5. 当我需要帮助时爱人却没有出现在身边，这让我感到沮丧。", r: false },
+            { t: "6. 我不会常常担心被人抛弃。", r: true }
+        ],
+        avoidance: [
+            { t: "1. 我想接近伴侣，但是总是后退。", r: false },
+            { t: "2. 如果伴侣和我太接近，我感到紧张。", r: false },
+            { t: "3. 我试图避免和伴侣太过接近。", r: false },
+            { t: "4. 我经常和伴侣讨论我的问题和顾虑。", r: true },
+            { t: "5. 困难时求助于爱人当然有作用。", r: true },
+            { t: "6. 很多事情包括寻求安慰和确信，我都会求助于伴侣。", r: true }
+        ]
+    };
+
+    function renderSection(items, containerId, prefix) {
+        const container = document.getElementById(containerId);
+        items.forEach((item, idx) => {
+            const div = document.createElement("div");
+            div.className = "question-item";
+            
+            // 生成 1-7 选项
+            let radios = "";
+            for(let i=1; i<=7; i++) {
+                radios += `
+                    <label class="radio-wrapper">
+                        <input type="radio" name="${prefix}_${idx}" value="${i}" required>
+                        <span>${i}</span>
+                    </label>
+                `;
+            }
+
+            div.innerHTML = `
+                <span class="question-text">${item.t}</span>
+                <div class="options-scale">
+                    <span class="scale-txt">强烈<br>反对</span>
+                    <div class="radio-group">${radios}</div>
+                    <span class="scale-txt">非常<br>同意</span>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    renderSection(questions.anxiety, "anxiety-questions", "anx");
+    renderSection(questions.avoidance, "avoidance-questions", "avd");
+
+    function calculateResult() {
+        const calc = (items, prefix) => {
+            let sum = 0, count = 0;
+            items.forEach((item, idx) => {
+                const els = document.getElementsByName(`${prefix}_${idx}`);
+                for(let el of els) {
+                    if(el.checked) {
+                        let val = parseInt(el.value);
+                        // 反向计分逻辑: 8 - val
+                        sum += item.r ? (8 - val) : val;
+                        count++;
+                    }
+                }
+            });
+            return { sum, count, total: items.length };
+        };
+
+        const rAnx = calc(questions.anxiety, "anx");
+        const rAvd = calc(questions.avoidance, "avd");
+
+        if(rAnx.count < rAnx.total || rAvd.count < rAvd.total) {
+            alert("请回答完所有问题再查看结果哦！");
+            return;
+        }
+
+        // 1. 显示分数 (总分)
+        document.getElementById("anx-score").innerText = rAnx.sum;
+        document.getElementById("avd-score").innerText = rAvd.sum;
+
+        // 2. 计算平均分 (用于坐标定位 1-7)
+        const avgAnx = rAnx.sum / 6;
+        const avgAvd = rAvd.sum / 6;
+
+        // 3. 判定类型 (以理论中点 4.0 为界)
+        let type = "";
+        if(avgAnx <= 4 && avgAvd <= 4) type = "安全型 (Secure)";
+        else if(avgAnx > 4 && avgAvd <= 4) type = "痴迷型 (Preoccupied)";
+        else if(avgAnx <= 4 && avgAvd > 4) type = "疏离型 (Dismissing)";
+        else type = "恐惧型 (Fearful)";
+
+        document.getElementById("type-result").innerText = type;
+
+        // 4. 定位坐标点
+        // X轴: (Avg - 1) / 6 * 100%
+        // Y轴: (Avg - 1) / 6 * 100% (CSS Top, 符合书中图表 上=低回避 下=高回避 的视觉逻辑)
+        const xPos = ((avgAnx - 1) / 6) * 100;
+        const yPos = ((avgAvd - 1) / 6) * 100;
+
+        const dot = document.getElementById("user-point");
+        dot.style.left = `${xPos}%`;
+        dot.style.top = `${yPos}%`;
+
+        // 5. 显示结果
+        const resSec = document.getElementById("result-section");
+        resSec.style.display = "block";
+        resSec.scrollIntoView({ behavior: "smooth" });
+    }
+</script>
+
+</body>
+</html>
